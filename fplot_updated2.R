@@ -11,7 +11,7 @@
 #' @return an object of class ggplot.
 #' @export
 #'
-fplot <- function(x, group, fontsize = 11, mid_title = FALSE, x_axis = FALSE, var_names = TRUE,
+fplot <- function(x, group, fontsize = 7, mid_title = FALSE, x_axis = FALSE, var_names = TRUE,
                   x_axis_centred = FALSE) {
   
   # detect limits
@@ -24,10 +24,10 @@ fplot <- function(x, group, fontsize = 11, mid_title = FALSE, x_axis = FALSE, va
   
   # filter data by `comparison` and then plot the effect sizes
   mydf <- filter(x, comparison == group)
-  p <- ggplot(mydf, mapping = aes(x = estimate, y = ef_domain)) + 
+  p <- ggplot(mydf, mapping = aes(x = estimate, y = ef_domain),fontsize=7) + 
     geom_linerange(mapping = aes(xmin = lower_ci, xmax = upper_ci)) +
     geom_point(aes(size = k)) +
-    scale_size(limits = c(0, max(mydf$k)), range = c(0, 7)) + #Also if you notice that the circles are to large, then in fplot.R line 29 you can reduce the range from (0, 7) to something smaller like (0, 5). It might happen when you start to export the plot into a vector format file. 
+    scale_size(limits = c(0, max(mydf$k)), range = c(0, 3)) + #Also if you notice that the circles are to large, then in fplot.R line 29 you can reduce the range from (0, 7) to something smaller like (0, 5). It might happen when you start to export the plot into a vector format file. 
     geom_vline(xintercept = 0, linetype = linetype) +
     theme_half_open(font_size = fontsize) +
     theme(plot.title.position = "plot") +
@@ -49,11 +49,11 @@ fplot <- function(x, group, fontsize = 11, mid_title = FALSE, x_axis = FALSE, va
   # generate theme for table graphics
   tab_base <- 
     filter(mydf, comparison == group) %>%
-    ggplot(aes(y = ef_domain)) +
+    ggplot(aes(y = ef_domain),fontsize=7) +
     ylab(NULL) +
     xlab("  ") +
-    theme_map() +  # not sure if this is needed
-    theme(plot.title = element_text(hjust = 0.5, size = 9)) +
+    theme_map(7) +  # not sure if this is needed
+    theme(plot.title = element_text(hjust = 0.5, size = 7)) +
     update_geom_defaults("text", list(size = fontsize/3.14)) # change table font size
   
   # plot individual table column 
