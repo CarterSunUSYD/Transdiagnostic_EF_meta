@@ -1,47 +1,16 @@
-# write('PATH="${RTOOLS40_HOME}\\usr\\bin;${PATH}"', file = "~/.Renviron", append = TRUE)
-
 Sys.which("make")
 #Step 1 Load All packages first
 rm(list=ls())
 
 ## Loading library
-library(robumeta)
 library("readxl")
-library(stringr)
-library(dplyr)
-library(metafor) 
-library(effsize)
-library("writexl")
-# library("xlsx")
-library(fishmethods) 
-library(here)
-library(janitor)
-library(purrr)
-
-#load other libraries if needed
-library(ggplot2)
-# remove.packages("ggplot2")
-library(tidyverse)
-#install.packages("ggthemes")
-library(ggthemes)
-library (netmeta)
-library (mada)
-library (mvmeta)
-library (rmeta)
+library(metafor)
 library (meta)
-library (metaSEM)
-library("pimeta")
-# remove.packages("vctrs")
-# install.packages("vctrs")
-# install.packages("magrittr")
-
-library(rgl)
-# netgraph(m.netmeta, dim = "3d"))
-library(clubSandwich)
 
 #NDDx Overall###########################################
 ## Loading raw data to merge NDDx vs. Control groups
-# NDDx_Control_Rawdata <- read_excel ("path_to_datacollectionfile.xlsx")
+NDDx_Control_Rawdata <- read_excel ("DataExtraction_NDDx_Controls.xlsx")
+
 # # View(NDDx_Control_Rawdata)
 # NDDx_Control_Clean <- na.exclude(NDDx_Control_Rawdata[,c("Study No." , "Study_Year" , "Year of Publication","EF Measure", "EF Domain", "EF_Domain_No" ,
 #                                                          "a. Clinical condition", "a. NDDx 1 Mean", "a. NDDx 1 Std-Dev","a. NDDx 1 Sample size",
@@ -183,10 +152,7 @@ library(clubSandwich)
 # # #Need to hide this after saving the effect size directions information in this file.
 # writexl::write_xlsx(All_clinicalcondition_with_control,"path_tosave_dataframe.xlsx",col_names = TRUE)
 
-All_clinicalcondition_with_control <- read_excel ("path_todataframesaved.xlsx")
-## merging Year of Publication here.- No need to run the following two lines anymore
-#merged_df <- merge(All_clinicalcondition_with_control, NDDx_Control_Clean[, c("Study No.", "Year of Publication")], by = "Study No.", all.x = TRUE)
-# All_clinicalcondition_with_control<-merged_df
+All_clinicalcondition_with_control <- read_excel ("3_Level_Table_NDDx_Control_v3_renamed_nesting.xlsx")
 All_clinicalcondition_with_control <- All_clinicalcondition_with_control[!is.na(All_clinicalcondition_with_control$Effect_direction), ]
 i<-c(5)
 All_clinicalcondition_with_control[, i] <- apply(All_clinicalcondition_with_control[,i],2,function(x) as.numeric(as.character(x))) 
@@ -197,9 +163,7 @@ All_clinicalcondition_with_control[,i]<-apply(All_clinicalcondition_with_control
 i<-c(23)
 All_clinicalcondition_with_control[,i]<-apply(All_clinicalcondition_with_control[,i],2,function(x) as.numeric(as.character(x)))
 
-# 
-# View(All_clinicalcondition_with_control)
-## calculate yi, vi per outcome
+# calculate yi, vi per outcome
 ### NDDx Effect Size Calculations 
 NDDx_control_EffectSize<- escalc(measure="SMD", m1i=All_clinicalcondition_with_control$`NDDx Mean`, sd1i=All_clinicalcondition_with_control$`NDDx Std-Dev`, n1i=All_clinicalcondition_with_control$`NDDx Sample size`, m2i=All_clinicalcondition_with_control$`Control Mean`,sd2i=All_clinicalcondition_with_control$`Control Std-Dev`,n2i=All_clinicalcondition_with_control$`Control Sample size`,
                                  slab=paste(All_clinicalcondition_with_control$`Study_Year`,sep=""))
@@ -229,8 +193,7 @@ View(NDDx_summary)
 # Standard error Calculation
 NDDx_summary$SE <- sqrt(NDDx_summary$vi)
 
-# Overall Multi-variant random effect (across NDDx/TD studies) executive function (run this section again if outliers removed)
-
+# Overall Multi-variant random effect (across NDDx/TD studies) executive function
 random_effect_study_ef <- rma.mv(yi, vi, random = ~ 1 |`Study.No.`, data=NDDx_summary,slab=paste(NDDx_summary$`Study.No.`,sep=""))
 print(random_effect_study_ef, digits=3)
 predict(random_effect_study_ef)
@@ -261,41 +224,58 @@ writexl::write_xlsx(Data_meta_means_nddx_overall, "path_to_save_nesteddata.xlsx"
 
 ## Funnel Plot for Asymmetric Test - Univariant
 eggers <- rma.mv(yi, vi, random = ~ 1 |`Study.No.`,mods = SE, data=NDDx_summary,slab=paste(NDDx_summary$`Study.No.`,sep=""))
+print(eggers)
 # # Uni-variant 
 random_effect_study_ef_univariant <- rma(yi = mean_g, sei = mean_SE, data =Data_meta_means_nddx_overall) 
 print(random_effect_study_ef_univariant,digits=3)
 predict(random_effect_study_ef_univariant)
-# funnel(random_effect_study_ef_univariant)
-# metabias(random_effect_study_ef_univariant$yi,random_effect_study_ef_univariant$vi)
-tiff("Supplementary_figure1a_300dpi.tiff", res=300, width = 6, height = 6, units = "in")
 
-taf <- trimfill(random_effect_study_ef_univariant, side = "left")
-funnel(taf)
-# metabias(taf$yi,taf$vi)
-dev.off()
+### Funnel plots preparation (Supplementary Figure 1)
+# Convert dimensions from millimeters to inches
+width_mm <- 180  # width in millimeters
+height_mm <- 120 # height in millimeters
+
+width_in <- width_mm / 25.4  # Convert to inches
+height_in <- height_mm / 25.4 # Convert to inches
+
+# Plot in svg format - eps format does not recognise <= sign
+svg("SupplementaryFigure1_nesting_funnelplot.svg", width = width_in, height = height_in, pointsize = 7)
+
+
+par(mfrow = c(1, 2), mar = c(5, 4, 4, 2) + 0.1, oma = c(3, 1, 3, 1), 
+    family = "Helvetica", cex = 0.7, cex.lab = 0.7, cex.axis = 0.7, cex.main = 0.8)
+funnel(random_effect_study_ef_univariant, main = "Nested Effect Sizes Across Studies (Original)")
+metabias(random_effect_study_ef_univariant$yi,random_effect_study_ef_univariant$vi)
+mtext("(A)", side = 1, line = 5, at = mean(par("usr")[1:2]), cex = 0.7, family = "Helvetica")
+
+# taf <- trimfill(random_effect_study_ef_univariant, side = "left")
+# funnel(taf)
+# # metabias(taf$yi,taf$vi)
 
 ## remove study no - g>2
 NDDx_summary_remove_glargerthan2<-subset(NDDx_summary, NDDx_summary$Study.No.!=173)
-
 eggers <- rma.mv(yi, vi, random = ~ 1 |`Study.No.`,mods = SE, data=NDDx_summary_remove_glargerthan2,slab=paste(NDDx_summary_remove_glargerthan2$`Study.No.`,sep=""))
 
 Data_meta_means_nddx_overall_remove_glargerthan2<-subset(Data_meta_means_nddx_overall, Data_meta_means_nddx_overall$Study.No.!=173)
 random_effect_study_ef_univariant_remove_glargerthan2 <- rma(yi = mean_g, sei = mean_SE, data = Data_meta_means_nddx_overall_remove_glargerthan2)
 print(random_effect_study_ef_univariant_remove_glargerthan2, digits=3)
 predict(random_effect_study_ef_univariant_remove_glargerthan2)
-funnel(random_effect_study_ef_univariant_remove_glargerthan2)
+# funnel(random_effect_study_ef_univariant_remove_glargerthan2)
 
 taf_remove_glargerthan2 <- trimfill(random_effect_study_ef_univariant_remove_glargerthan2, side = "left")
-tiff("Supplementary_figure1b_300dpi.tiff", res=300, width = 6, height = 6, units = "in")
-
-funnel(taf_remove_glargerthan2)
+funnel(taf_remove_glargerthan2, main = "Nested Effect Sizes Across Studies (Trim-and-Fill)",legend=TRUE)
+metabias(taf_remove_glargerthan2$yi,taf_remove_glargerthan2$vi)
+mtext("(B)", side = 1, line = 5, at = mean(par("usr")[1:2]), cex = 0.7, family = "Helvetica")
 
 dev.off()
 
-
+#Update the NDDX dataframe
+NDDx_summary<-NDDx_summary_remove_glargerthan2#If outliers removed use this, and run the above multi-variant analysis again to confirm changes
+random_effect_study_ef <- rma.mv(yi, vi, random = ~ 1 |`Study.No.`, data=NDDx_summary,slab=paste(NDDx_summary$`Study.No.`,sep=""))
+print(random_effect_study_ef, digits=3)
+predict(random_effect_study_ef)
 ##################################
 
-NDDx_summary<-NDDx_summary_remove_glargerthan2#If outliers removed use this, and run the above multi-variant analysis again to confirm changes
 # Forest plot per EF Domain
 skipped_domains_norf_lessstudyonly <-c()
 EF_domains<-c()
@@ -341,10 +321,6 @@ for (domain_label in unique(NDDx_summary$EF.Domain)){
   
   if (pooled_effect_p < 0.001) {
     result <- "<0.001"
-  } else if (pooled_effect_p < 0.01) {
-    result <- "<0.01"
-  } else if (pooled_effect_p < 0.05) {
-    result <- "<0.05"
   } else {
     result <- format(pooled_effect_p, digits = 3)
   }
@@ -372,21 +348,6 @@ pooled_effects_efdomains_dataframe<- pooled_effects_efdomains_dataframe  %>% mut
                                                                                     brackets = sprintf("%.2f (%.2f, %.2f)",estimate,lower_ci,upper_ci))
 # writexl::write_xlsx(pooled_effects_efdomains_dataframe,"Figure3_nesting_data_NDDx_control_effectsizes_EF_no_rf_perdomain.xlsx",col_names=TRUE)
 
-# Create a single forest plot to display the pooled effects of sub-domains
-# overall_forest_plot_efdomains <- metafor::forest(pooled_effects_efdomains_dataframe$Pooled_Effect, 
-#                                                                       ci.lb = pooled_effects_efdomains_dataframe$Pooled_cilb, 
-#                                                                       ci.ub = pooled_effects_efdomains_dataframe$Pooled_ciub,
-#                                                                       slab = paste(pooled_effects_efdomains_dataframe$Domain),
-#                                                                       xlim = c(-5, 8),  # Adjust as needed
-#                                                                       addsummary = TRUE,
-#                                                                       addpred=TRUE, 
-#                                                                       header = "Executive Function Domains",
-#                                                                       xlab = "Pooled Effect Size",
-#                                                                       digits = 3)
-
-# Display the overall forest plot
-# print(overall_forest_plot_efdomains_behaviour_biological)
-
 cat("less than three studies, not suitable for meta-analysis:", paste(skipped_domains_norf_lessstudyonly, collapse = ", "),"\n") 
 skipped_norf_datasets <- NDDx_summary[NDDx_summary$EF.Domain %in% skipped_domains_norf_lessstudyonly, ]
 # writexl::write_xlsx(skipped_norf_datasets,"NDDx_control_effectsizes_EF_no_rf_perdomain_skippedstudies.xlsx",col_names=TRUE)
@@ -396,33 +357,39 @@ if (!require("pacman")) install.packages("pacman")
 # p_load combines install.packages() and library() together:
 pacman::p_load(tidyverse, ggeasy, janitor, patchwork, cowplot)
 # read data
-source("fplot_updated2.R") 
+source("fplot_updated2.R")
 grps <- unique(pooled_effects_efdomains_dataframe$comparison) # create list of groups from data frame
 g1 <- fplot(pooled_effects_efdomains_dataframe, grps[1], var_names = TRUE, x_axis = TRUE, x_axis_centred = TRUE)
-finalplot <-
-  
-  g1
-
+finalplot <- g1
 FinalPlot2 <- ggdraw(finalplot) +
-  #  Code here creates a title at the centre of the forest plot
-  draw_plot_label(x = 0.13,y = .985, label = "Favours Clinical Groups  Favours Control", 
-                  hjust = 0, size = 10, colour="#0072B2")
+  draw_plot(finalplot, 0, 0, 1, 1) +
+  draw_text(
+    "Effect Analysis Across Executive Function Domains", 
+    x = 0.5, y = 1,  # Center horizontally and place at the top
+    hjust = 0.5, vjust = 1.5,  # Adjust vertical position to move title up or down
+    size = 7, fontface = "bold",family="Helvetica"
+  )+
+  draw_plot_label(x = 0.142,y = .95, label = "Favours Clinical Groups  Favours Control", 
+                  hjust = 0, size = 7, colour="#0072B2",family="Helvetica",fontface = "bold") +
+  theme(
+    text = element_text(family = "Helvetica", size = 7),
+    # plot.margin = margin(t = 20, r = 10, b = 10, l = 10)  # Add more space at the top
+  )
 ggsave(
-  "Figure2_May2024.jpeg",
+  "Figure2_Aug2024.eps",
   plot = FinalPlot2,
-  # device = jpeg(),
+  #device = svg(),
   path = NULL,
   scale = 1,
-  width = 10,
-  height = 10,
-  # units = c( "mm"),
-  dpi = 600,
+  width = 180,
+  height = 120,
+  units = c( "mm"),
+  dpi = 450,
   limitsize = FALSE,
   bg = NULL,
 )
-
 #########################################################################
-# Exploring ---- Separate Overall Effect for each NDC vs. Control pair
+# Separate Overall Effect for each NDC vs. Control pair
 
 
 for (condi in unique(All_clinicalcondition_with_control$`Clinical condition`)){
@@ -439,41 +406,45 @@ for (condi in unique(All_clinicalcondition_with_control$`Clinical condition`)){
   print(random_effect_study_ef_each_condition)
 }
 
-### Single NDC vs. control overall EF plot
-if (!require("pacman")) install.packages("pacman")
-# p_load combines install.packages() and library() together:
-pacman::p_load(tidyverse, ggeasy, janitor, patchwork, cowplot)
-# read data
-#Update the next dataframe in Final_figure3_singleNDDx_control_effectsizes.xlsx based on random_effect_study_ef_each_condition.
-single_NDC_control_dataframe <- read_excel ("Figure3_singleNDDx_control_effectsizes.xlsx")
 
+# Single NDC Group Effect
+single_ndc_group <-subset(All_clinicalcondition_with_control,All_clinicalcondition_with_control$`condition type`==0)
+random_effect_study_ef_single_ndc_group  <- rma.mv(yi, vi, random = ~ 1 |`Study No.`, data=single_ndc_group,slab=paste(single_ndc_group$`Study No.`,sep=""))
+print(random_effect_study_ef_single_ndc_group )
+### Single NDC vs. control overall EF plot
+# read data
+single_NDC_control_dataframe <- read_excel ("Final_figure3_singleNDDx_control_effectsizes.xlsx")
+single_NDC_control_dataframe <- single_NDC_control_dataframe %>%
+  mutate(pval = ifelse(pval == "<0.001", "<0.001", format(as.numeric(pval), digits = 3)))
 grps <- unique(single_NDC_control_dataframe$comparison) # create list of groups from data frame
 g1 <- fplot(single_NDC_control_dataframe, grps[1], var_names = TRUE, x_axis = TRUE, x_axis_centred = TRUE)
-finalplot <-
-  
-  g1
-# g2 / g3 /
-# g4 / g5 
-# +
-# plot_layout(heights =
-#               c(7,5,1, 6, 6))
+finalplot <- g1
+
 FinalPlot2 <- ggdraw(finalplot) +
   #  Code here creates a title at the centre of the forest plot
-  draw_plot_label(x = 0.15,y = .95, label = "Favours Clinical Groups  Favours Control", 
-                  hjust = 0, size = 10, colour="#0072B2")
+  draw_plot(finalplot, 0, 0, 1, 1) +
+  draw_text(
+    "Effect Analysis For Each NDC Compared To Controls", 
+    x = 0.5, y = 1,  # Center horizontally and place at the top
+    hjust = 0.5, vjust = 1.5,  # Adjust vertical position to move title up or down
+    size = 7, fontface = "bold",family="Helvetica"
+  )+
+  draw_plot_label(x = 0.173,y = .95, label = "Favours Clinical Groups  Favours Control", 
+                  hjust = 0, size = 7, colour="#0072B2",family="Helvetica",fontface="bold")
+
 ggsave(
-  "Figure3_May2024_singleNDC_Control.jpeg",
+  "Figure3_Aug2024.eps",
   plot = FinalPlot2,
-  # device = jpeg(),
   path = NULL,
   scale = 1,
-  width = 10,
-  height = 10,
-  # units = c( "mm"),
-  dpi = 600,
+  width = 180,
+  height = 120,
+  units = c( "mm"),
+  dpi = 450,
   limitsize = FALSE,
   bg = NULL,
 )
+
 
 ##################################################################################
 # Moderator Analysis - Type of Measure
@@ -483,9 +454,6 @@ random_effect_study_ef_tom <- rma.mv(yi, vi, random = ~ 1 |`Study.No.`, data=sub
 moderator_tom<-rma.mv(yi, vi, random = ~ 1 |`Study.No.`, mods = ~factor(`Assessment.Type`), data=subset_all_studies_with_tom,
        slab=paste(subset_all_studies_with_tom$`Study.No.`,sep=""))
 print(moderator_tom, digits=3)
-
-
-moderator_tom$I2
 
 # to calcualte R^2 
 #(OBSv - MODv) / OBVv
@@ -522,40 +490,7 @@ max(0,100 * (sum(random_effect_study_ef_age$sigma2) - sum(moderator_age$sigma2))
 
 moderator_age_for_subgroupstats <- rma.mv(yi, vi, random = ~ 1 |`Study.No.`, mods = ~factor(`NDDx_Age_category`)-1, data=subset_all_studies_with_age,
                    slab=paste(subset_all_studies_with_age$`Study.No.` ,sep=""))
-
-
-# ### Performance data only, check age moderator
-# subset_all_studies_age_performanceonly= subset(subset_all_studies_with_age,subset_all_studies_with_age$`Assessment Type`==0)
-# random_effect_study_ef_age_performanceonly <- rma.mv(yi, vi, random = ~ 1 |`Study No.`, data=subset_all_studies_age_performanceonly,slab=paste(subset_all_studies_age_performanceonly$`Study No.`,sep=""))
-# 
-# moderator_age_performanceonly <-rma.mv(yi, vi, random = ~ 1 |`Study No.`, mods = ~factor(`NDDx_Age_category`), data=subset_all_studies_age_performanceonly,
-#        slab=paste(subset_all_studies_age_performanceonly$NDDx_Age_category ,sep=""))
-# print(moderator_age_performanceonly, digits=3)
-# print(random_effect_study_ef_age_performanceonly)
-# moderator_age_performanceonly$I2
-# # to calcualte R^2 
-# #(OBSv - MODv) / OBVv
-# max(0,100 * (sum(random_effect_study_ef_age_performanceonly$sigma2) - sum(moderator_age_performanceonly$sigma2)) / sum(random_effect_study_ef_age_performanceonly$sigma2))
-# 
-# moderator_age_performanceonly_for_subgroupstats <- rma.mv(yi, vi, random = ~ 1 |`Study No.`, mods = ~factor(`NDDx_Age_category`)-1, data=subset_all_studies_age_performanceonly,
-#                         slab=paste(subset_all_studies_age_performanceonly$NDDx_Age_category ,sep=""))
-# print(moderator_age_performanceonly_for_subgroupstats, digits=3)
-# 
-# ## Informant data only, check age moderator
-# subset_all_studies_age_informantonly= subset(subset_all_studies_with_age,subset_all_studies_with_age$`Assessment Type`==1)
-# random_effect_study_ef_age_informantonly <- rma.mv(yi, vi, random = ~ 1 |`Study No.`, data=subset_all_studies_age_informantonly,slab=paste(subset_all_studies_age_informantonly$`Study No.`,sep=""))
-# 
-# moderator_age_informantonly<-rma.mv(yi, vi, random = ~ 1 |`Study No.`, mods = ~factor(`NDDx_Age_category`), data=subset_all_studies_age_informantonly,
-#        slab=paste(subset_all_studies_age_informantonly$NDDx_Age_category ,sep=""))
-# print(moderator_age_informantonly, digits=3)
-# moderator_age_informantonly$I2
-# # to calcualte R^2 
-# #(OBSv - MODv) / OBVv
-# max(0,100 * (sum(random_effect_study_ef_age_informantonly$sigma2) - sum(moderator_age_informantonly$sigma2)) / sum(random_effect_study_ef_age_informantonly$sigma2))
-# 
-# moderator_age_informantonly_for_subgroupstats <- rma.mv(yi, vi, random = ~ 1 |`Study No.`, mods = ~factor(`NDDx_Age_category`)-1, data=subset_all_studies_age_informantonly,
-#                                         slab=paste(subset_all_studies_age_informantonly$NDDx_Age_category ,sep=""))
-# print(moderator_age_informantonly_for_subgroupstats, digits=3)
+print(moderator_age_for_subgroupstats)
 
 
 # Moderator Analysis - Gender Continuous
@@ -572,41 +507,17 @@ moderator_gender$I2
 max(0,100 * (sum(random_effect_study_ef_gender$sigma2) - sum(moderator_gender$sigma2)) / sum(random_effect_study_ef_gender$sigma2))
 
 # Moderator Analysis - Publication Year
-# i<-c(23)
-# NDDx_summary[,i]<-apply(NDDx_summary[,i],2,function(x) as.numeric(as.character(x)))
 subset_all_studies_with_YoP <-NDDx_summary%>% filter(!is.na(`Year.of.Publication`),`Year.of.Publication` !="")
 random_effect_study_ef_YoP <- rma.mv(yi, vi, random = ~ 1 |`Study.No.`, data=subset_all_studies_with_YoP,slab=paste(subset_all_studies_with_YoP$`Study.No.`,sep=""))
 
 moderator_YoP <- rma.mv(yi, vi, random = ~ 1 |`Study.No.`, mods = `Year.of.Publication`, data=subset_all_studies_with_YoP,
                   slab=paste(subset_all_studies_with_YoP$`Study.No.`,sep=""))
 print(moderator_YoP, digits=3)
-moderator_YoP$I2
 
 # to calcualte R^2 
 #(OBSv - MODv) / OBVv
 max(0,100 * (sum(random_effect_study_ef_YoP$sigma2) - sum(moderator_YoP$sigma2)) / sum(random_effect_study_ef_YoP$sigma2))
 
-# ### Performance data only, check Publication year moderator
-# subset_all_studies_with_YoP_performanceonly= subset(subset_all_studies_with_YoP,subset_all_studies_with_YoP$`Assessment Type`==0)
-# random_effect_study_ef_YoP_performanceonly <- rma.mv(yi, vi, random = ~ 1 |`Study No.`, data=subset_all_studies_with_YoP_performanceonly,slab=paste(subset_all_studies_with_YoP_performanceonly$`Study No.`,sep=""))
-# 
-# moderator_YoP_performance <- rma.mv(yi, vi, random = ~ 1 |`Study No.`, mods = `Year of Publication`, data=subset_all_studies_with_YoP_performanceonly,
-#                         slab=paste(subset_all_studies_with_YoP_performanceonly$`Year of Publication`,sep=""))
-# print(moderator_YoP_performance, digits=3)
-# # to calcualte R^2 
-# #(OBSv - MODv) / OBVv
-# max(0,100 * (sum(random_effect_study_ef_YoP_performanceonly$sigma2) - sum(moderator_YoP_performance$sigma2)) / sum(random_effect_study_ef_YoP_performanceonly$sigma2))
-# 
-# ## Informant data only, check publication year moderator
-# subset_all_studies_with_YoP_informantonly= subset(subset_all_studies_with_YoP,subset_all_studies_with_YoP$`Assessment Type`==1)
-# random_effect_study_ef_YoP_informantonly <- rma.mv(yi, vi, random = ~ 1 |`Study No.`, data=subset_all_studies_with_YoP_informantonly,slab=paste(subset_all_studies_with_YoP_informantonly$`Study No.`,sep=""))
-# 
-# moderator_YoP_informant <- rma.mv(yi, vi, random = ~ 1 |`Study No.`, mods = `Year of Publication`, data=subset_all_studies_with_YoP_informantonly,
-#                                     slab=paste(subset_all_studies_with_YoP_informantonly$`Year of Publication`,sep=""))
-# print(moderator_YoP_informant, digits=3)
-# # to calcualte R^2 
-# #(OBSv - MODv) / OBVv
-# max(0,100 * (sum(random_effect_study_ef_YoP_informantonly$sigma2) - sum(moderator_YoP_informant$sigma2)) / sum(random_effect_study_ef_YoP_informantonly$sigma2))
 
 ################################################################
 # Moderator Analysis - DSM version
@@ -624,15 +535,6 @@ max(0,100 * (sum(random_effect_study_ef_DSM$sigma2) - sum(moderator_DSM$sigma2))
 moderator_DSM_for_subgroupstats <- rma.mv(yi, vi, random = ~ 1 |`Study.No.`, mods = ~factor(`DSM.No`) -1, data=subset_all_studies_with_DSM,
                   slab=paste(subset_all_studies_with_DSM$`Study.No.`,sep=""))
 print(moderator_DSM_for_subgroupstats, digits=3)
-
-
-
-## Plot results
-qplot(x = yi, y = vi, data = subset_all_studies_with_DSM, color = `DSM No`) +
-  geom_smooth(method = "lm") 
-
-
-
 # DSM moderator - performance only
 subset_all_studies_with_DSM_performanceonly= subset(subset_all_studies_with_DSM,subset_all_studies_with_DSM$`Assessment.Type`==0)
 random_effect_study_ef_DSM_performanceonly <- rma.mv(yi, vi, random = ~ 1 |`Study.No.`, data=subset_all_studies_with_DSM_performanceonly,slab=paste(subset_all_studies_with_DSM_performanceonly$`Study.No.`,sep=""))
@@ -641,7 +543,6 @@ moderator_DSM_performance <-rma.mv(yi, vi, random = ~ 1 |`Study.No.`, mods = ~fa
                                    slab=paste(subset_all_studies_with_DSM_performanceonly$`Study.No.`,sep=""))
 
 print(moderator_DSM_performance, digits=3)
-moderator_DSM_performance$I2
 
 # to calcualte R^2 
 #(OBSv - MODv) / OBVv
@@ -649,14 +550,14 @@ max(0,100 * (sum(random_effect_study_ef_DSM_performanceonly$sigma2) - sum(modera
 
 moderator_DSM_performance_for_subgroupstats <- rma.mv(yi, vi, random = ~ 1 |`Study.No.`, mods = ~factor(`DSM.No`) -1, data=subset_all_studies_with_DSM_performanceonly,
                                                       slab=paste(subset_all_studies_with_DSM_performanceonly$`Study.No.`,sep=""))
+print(moderator_DSM_performance_for_subgroupstats)
 # DSM moderator - Informant only
 subset_all_studies_with_DSM_informantonly= subset(subset_all_studies_with_DSM,subset_all_studies_with_DSM$`Assessment.Type`==1)
 random_effect_study_ef_DSM_informantonly<- rma.mv(yi, vi, random = ~ 1 |`Study.No.`, data=subset_all_studies_with_DSM_informantonly,slab=paste(subset_all_studies_with_DSM_informantonly$`Study.No.`,sep=""))
 
 moderator_DSM_informant<-rma.mv(yi, vi, random = ~ 1 |`Study.No.`, mods = ~factor(`DSM.No`), data=subset_all_studies_with_DSM_informantonly,
                                 slab=paste(subset_all_studies_with_DSM_informantonly$`Study.No.`,sep=""))
-moderator_DSM_informant$I2
-
+print(moderator_DSM_informant)
 # to calcualte R^2 
 #(OBSv - MODv) / OBVv
 max(0,100 * (sum(random_effect_study_ef_DSM_informantonly$sigma2) - sum(moderator_DSM_informant$sigma2)) / sum(random_effect_study_ef_DSM_informantonly$sigma2))
@@ -668,95 +569,17 @@ print(moderator_DSM_informant_forsubgroupstats, digits=3)
 
 
 ###################################################################################################################################################################
-# # Further Investigation
-# ### Multi-variant random effect (across NDDx/TD studies) Performance-based only studies
-# random_effect_study_ef_performance <- rma.mv(yi, vi, random = ~ 1 |`Study No.`, data=All_clinicalcondition_with_control_performanceonly,slab=paste(All_clinicalcondition_with_control_performanceonly$`Study No.`,sep=""))
-# print(random_effect_study_ef_performance)
-# predict(random_effect_study_ef_performance)
-# ### to get I-squared (from robumeta) 
-# study_robust<- robu(formula = yi ~ 1, data = All_clinicalcondition_with_control_performanceonly, studynum =`Study No.`, var.eff.size = vi)
-# study_robust$mod_info$I.2
-# study_robust$mod_info$tau.sq
-# ### Multi-variant random effect (across NDDx/TD studies) Informant only studies
-# random_effect_study_ef_informant <- rma.mv(yi, vi, random = ~ 1 |`Study No.`, data=All_clinicalcondition_with_control_informantonly,slab=paste(All_clinicalcondition_with_control_informantonly$`Study No.`,sep=""))
-# print(random_effect_study_ef_informant)
-# predict(random_effect_study_ef_informant)
-# ### to get I-squared (from robumeta) 
-# study_robust<- robu(formula = yi ~ 1, data = All_clinicalcondition_with_control_informantonly, studynum =`Study No.`, var.eff.size = vi)
-# study_robust$mod_info$I.2
-# study_robust$mod_info$tau.sq
-# 
-# 
-# # Find how many studies per DSM per condition from all NDC_Control studies
-# DSM_editions = c("DSM-V","DSM-IV","DSM-IV-TR","DSM-III-R")
-# DSM_summarytable =list()
-# each_condition =list()
-# Number_of_study =list()
-# flag=1
-# temp<-list()
-# for (dsm_ed in DSM_editions){
-#   each_dsm_group <-subset(All_clinicalcondition_with_control,All_clinicalcondition_with_control$`DSM edition`==dsm_ed)
-#   print(dsm_ed)
-#   for (condition in unique(each_dsm_group$`Clinical condition`)){
-#     each_condition<-subset(each_dsm_group,each_dsm_group$`Clinical condition`==condition)
-#     Number_of_study <-length(unique(each_condition$`Study No.`))
-#     brief_dataframe<- each_condition[grepl("BRIEF",each_condition$`EF Measure`),]
-#     brief_count <-length(unique(brief_dataframe$`Study No.`))
-#     performance_dataframe <- each_condition[grepl(0,each_condition$`Assessment Type`),]
-#     performance_count <-length(unique(performance_dataframe$`Study No.`))
-#     
-#     informant_dataframe <- each_condition[grepl(1,each_condition$`Assessment Type`),]
-#     informant_count <-length(unique(informant_dataframe$`Study No.`))
-#     
-#     current <- data.frame(
-#         Edition = dsm_ed,
-#         Condition = condition,
-#         number = Number_of_study,
-#         BRIEF = brief_count,
-#         Performance = performance_count,
-#         Informant = informant_count
-#     )
-#     temp[[flag]]<-current
-#     
-#     flag=flag+1
-#   }
-# }
-# DSM_summarytable<-do.call(rbind,temp)
-# 
-# View(DSM_summarytable)
-# # writexl::write_xlsx(DSM_summarytable, "Frequency_based_onDSM.xlsx")
-# ## Note: Percentage calculation was done in the excel file,
-# DSM_percentage <-read_excel("Frequency_based_onDSM_DSM4_combined.xlsx")
-# ## Pie chart
-# library(ggplot2)
-# library(tidyr)
-# library(stringr)
-# library(webr)
-# # data_long <- pivot_longer(DSM_percentage, cols = c("Condition_Percentage","Performance_percentage","Informant_Percentage"), names_to = "Percentage", values_to = "Value")
-# for (dsm in unique(DSM_percentage$Edition)){
-#   separate_dsm = subset(DSM_percentage,DSM_percentage$Edition==dsm)
-#   PieDonut(separate_dsm,aes(Edition,Condition,count=number),showRatioThreshold=0,start=3*pi/2,ratioByGroup=FALSE,labelpositionThreshold=0.007,r1=0.9)
-#   # pie(separate_dsm$Condition_Percentage)
-#   # PieDonut(separate_dsm,aes(Edition,Condition,count=number),labelposition=2,start=3*pi/2,labelpositionThreshold=5,showRatioThreshold=0,r2=1.5,maxx=2)
-#   
-# }
-
-
-
-#############################################################
-
 # Single NDC Group Effect
-# All_clinicalcondition_with_control <- read_excel ("3_Level_Table_NDDx_Control_v3_NDC_renamed.xlsx")
 single_ndc_group <-subset(NDDx_summary,NDDx_summary$`condition.type`==0)
 random_effect_study_ef_single_ndc_group  <- rma.mv(yi, vi, random = ~ 1 |`Study.No.`, data=single_ndc_group,slab=paste(single_ndc_group$`Study.No.`,sep=""))
 print(random_effect_study_ef_single_ndc_group )
 
 ## Single group DSM moderator
-subset_single_ndc_group_with_DSM <-single_ndc_group%>% filter(!is.na(`DSM No`),`DSM No` !="")
-random_effect_single_ndc_DSM <- rma.mv(yi, vi, random = ~ 1 |`Study No.`, data=subset_single_ndc_group_with_DSM,slab=paste(subset_single_ndc_group_with_DSM$`Study No.`,sep=""))
+subset_single_ndc_group_with_DSM <-single_ndc_group%>% filter(!is.na(`DSM.No`),`DSM.No` !="")
+random_effect_single_ndc_DSM <- rma.mv(yi, vi, random = ~ 1 |`Study.No.`, data=subset_single_ndc_group_with_DSM,slab=paste(subset_single_ndc_group_with_DSM$`Study.No.`,sep=""))
 
-moderator_DSM_single_ndc_group<-rma.mv(yi, vi, random = ~ 1 |`Study No.`, mods = ~factor(`DSM No`), data=subset_single_ndc_group_with_DSM,
-       slab=paste(subset_single_ndc_group_with_DSM$`Study No.`,sep=""))
+moderator_DSM_single_ndc_group<-rma.mv(yi, vi, random = ~ 1 |`Study.No.`, mods = ~factor(`DSM.No`), data=subset_single_ndc_group_with_DSM,
+       slab=paste(subset_single_ndc_group_with_DSM$`Study.No.`,sep=""))
 print(moderator_DSM_single_ndc_group, digits=3)
 moderator_DSM_single_ndc_group$I2
 
@@ -764,65 +587,17 @@ moderator_DSM_single_ndc_group$I2
 #(OBSv - MODv) / OBVv
 max(0,100 * (sum(random_effect_single_ndc_DSM$sigma2) - sum(moderator_DSM_single_ndc_group$sigma2)) / sum(random_effect_single_ndc_DSM$sigma2))
 
-moderator_DSM_single_ndc_group_forsubgroups_stats <- rma.mv(yi, vi, random = ~ 1 |`Study No.`, mods = ~factor(`DSM No`) -1, data=subset_single_ndc_group_with_DSM,
-                                    slab=paste(subset_single_ndc_group_with_DSM$`DSM edition`,sep=""))
+moderator_DSM_single_ndc_group_forsubgroups_stats <- rma.mv(yi, vi, random = ~ 1 |`Study.No.`, mods = ~factor(`DSM.No`) -1, data=subset_single_ndc_group_with_DSM,
+                                    slab=paste(subset_single_ndc_group_with_DSM$`DSM.edition`,sep=""))
 print(moderator_DSM_single_ndc_group_forsubgroups_stats, digits=3)
 
 ## Single group performance effect
-single_ndc_group_performanceonly = subset(single_ndc_group,single_ndc_group$`Assessment Type`==0)
-random_effect_study_ef_single_ndc_group_performanceonly  <- rma.mv(yi, vi, random = ~ 1 |`Study No.`, data=single_ndc_group_performanceonly,slab=paste(single_ndc_group_performanceonly$`Study No.`,sep=""))
+single_ndc_group_performanceonly = subset(single_ndc_group,single_ndc_group$`Assessment.Type`==0)
+random_effect_study_ef_single_ndc_group_performanceonly  <- rma.mv(yi, vi, random = ~ 1 |`Study.No.`, data=single_ndc_group_performanceonly,slab=paste(single_ndc_group_performanceonly$`Study.No.`,sep=""))
 print(random_effect_study_ef_single_ndc_group_performanceonly )
 
-# ### Single group performance only DSM moderator
-# subset_single_ndc_studies_with_DSM_performanceonly<-single_ndc_group_performanceonly%>% filter(!is.na(`DSM No`),`DSM No` !="")
-# 
-# random_effect_study_ef_DSM_performanceonly <- rma.mv(yi, vi, random = ~ 1 |`Study No.`, data=subset_single_ndc_studies_with_DSM_performanceonly,slab=paste(subset_single_ndc_studies_with_DSM_performanceonly$`Study No.`,sep=""))
-# moderator_DSM_single_ndc_group_performonly <- rma.mv(yi, vi, random = ~ 1 |`Study No.`, mods = ~factor(`DSM No`), data=subset_single_ndc_studies_with_DSM_performanceonly,
-#        slab=paste(subset_single_ndc_studies_with_DSM_performanceonly$`Study No.`,sep=""))
-# moderator_DSM_single_ndc_group_performonly$I2
-# 
-# # to calcualte R^2 
-# #(OBSv - MODv) / OBVv
-# max(0,100 * (sum(random_effect_study_ef_DSM_performanceonly$sigma2) - sum(moderator_DSM_single_ndc_group_performonly$sigma2)) / sum(random_effect_study_ef_DSM_performanceonly$sigma2))
-# 
-# moderator_DSM_single_ndc_group_performonly_forsubgroupstats <- rma.mv(yi, vi, random = ~ 1 |`Study No.`, mods = ~factor(`DSM No`) -1, data=subset_single_ndc_studies_with_DSM_performanceonly,
-#                                          slab=paste(subset_single_ndc_studies_with_DSM_performanceonly$`DSM edition`,sep=""))
-# print(moderator_DSM_single_ndc_group_performonly_forsubgroupstats, digits=3)
 ####################################################################
 # Comorbid group effect
 comorbid_ndc_group <-subset(NDDx_summary,NDDx_summary$`condition.type`==1)
 random_effect_study_ef_comorbid_ndc_group <- rma.mv(yi, vi, random = ~ 1 |`Study.No.`, data=comorbid_ndc_group,slab=paste(comorbid_ndc_group$`Study.No.`,sep=""))
 print(random_effect_study_ef_comorbid_ndc_group )
-# ## Comorbid group DSM moderator
-# subset_comorbid_ndc_studies_withDSM<-comorbid_ndc_group%>% filter(!is.na(`DSM No`),`DSM No` !="")
-# random_comorbid_ndc_DSM<- rma.mv(yi, vi, random = ~ 1 |`Study No.`, data=subset_comorbid_ndc_studies_withDSM,slab=paste(subset_comorbid_ndc_studies_withDSM$`Study No.`,sep=""))
-# 
-# moderator_DSMcomorbid_ndc_group<-rma.mv(yi, vi, random = ~ 1 |`Study No.`, mods = ~factor(`DSM No`), data=subset_comorbid_ndc_studies_withDSM,
-#        slab=paste(subset_comorbid_ndc_studies_withDSM$`Study No.`,sep=""))
-# moderator_DSMcomorbid_ndc_group$I2
-# 
-# # to calcualte R^2 
-# #(OBSv - MODv) / OBVv
-# max(0,100 * (sum(random_comorbid_ndc_DSM$sigma2) - sum(moderator_DSMcomorbid_ndc_group$sigma2)) / sum(random_comorbid_ndc_DSM$sigma2))
-# 
-# moderator_DSMcomorbid_ndc_group_forsubgroupstats<- rma.mv(yi, vi, random = ~ 1 |`Study No.`, mods = ~factor(`DSM No`) -1, data=subset_comorbid_ndc_studies_withDSM,
-#                                          slab=paste(subset_comorbid_ndc_studies_withDSM$`Study No.`,sep=""))
-# print(moderator_DSMcomorbid_ndc_group_forsubgroupstats, digits=3)
-
-# ## Comorbid group performance effect
-# comorbid_ndc_group_performanceonly= subset(comorbid_ndc_group,comorbid_ndc_group$`Assessment Type`==1)
-# random_effect_study_ef_comorbid_ndc_group_performanceonly  <- rma.mv(yi, vi, random = ~ 1 |`Study No.`, data=comorbid_ndc_group_performanceonly,slab=paste(comorbid_ndc_group_performanceonly$`Study No.`,sep=""))
-# print(random_effect_study_ef_comorbid_ndc_group_performanceonly )
-# ###Comorbid group performance DSM moderator
-# moderator_DSM_comorbid_ndc_group_performonly<-rma.mv(yi, vi, random = ~ 1 |`Study No.`, mods = ~factor(`DSM No`) -1, data=comorbid_ndc_group_performanceonly,
-#        slab=paste(comorbid_ndc_group_performanceonly$`DSM edition`,sep=""))
-# moderator_DSM_comorbid_ndc_group_performonly$I2
-# 
-# # to calcualte R^2 
-# #(OBSv - MODv) / OBVv
-# max(0,100 * (sum(random_effect_study_ef_comorbid_ndc_group_performanceonly$sigma2) - sum(moderator_DSM_comorbid_ndc_group_performonly$sigma2)) / sum(random_effect_study_ef_comorbid_ndc_group_performanceonly$sigma2))
-# 
-# 
-# moderator_DSM_comorbid_ndc_group_performonly_forsubgroupstats <- rma.mv(yi, vi, random = ~ 1 |`Study No.`, mods = ~factor(`DSM No`) -1, data=comorbid_ndc_group_performanceonly,
-#                                                      slab=paste(comorbid_ndc_group_performanceonly$`DSM edition`,sep=""))
-# print(moderator_DSM_comorbid_ndc_group_performonly_forsubgroupstats, digits=3)
